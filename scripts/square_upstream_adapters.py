@@ -32,7 +32,7 @@ def ae_policy(base):
 
 class PairedRunner(BaseImageRunner):
     def __init__(self,output_dir,modality):
-        super().__init__(output_dir);self.modality=modality;self.index=0
+        super().__init__(output_dir);self.modality=modality;self.index=1
     def run(self,policy):
         epoch=self.index*50;self.index+=1
         folder=Path(self.output_dir)/'rollouts'/f'epoch_{epoch:04d}';folder.mkdir(parents=True,exist_ok=True)
@@ -54,6 +54,7 @@ def config(modality):
         cfg=compose(config_name='train_diffusion_unet_hybrid_workspace',overrides=['task=square_image_abs'])
     OmegaConf.set_struct(cfg,False)
     original=OmegaConf.to_container(cfg,resolve=True)
+    cfg.training.skip_initial_rollout=True
     cfg.training.stop_after_epochs=100  # scheduler still sees original num_epochs=3050
     cfg.logging.mode='offline'
     cfg.task.dataset._target_='square_upstream_adapters.MaskDataset'

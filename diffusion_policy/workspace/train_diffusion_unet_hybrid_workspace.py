@@ -213,7 +213,8 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
                 policy.eval()
 
                 # run rollout
-                if (self.epoch % cfg.training.rollout_every) == 0:
+                if (self.epoch % cfg.training.rollout_every) == 0 and not (
+                        self.epoch == 0 and cfg.training.get('skip_initial_rollout', False)):
                     runner_log = env_runner.run(policy)
                     # log all
                     step_log.update(runner_log)
@@ -256,7 +257,8 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
                         del mse
                 
                 # checkpoint
-                if (self.epoch % cfg.training.checkpoint_every) == 0:
+                if (self.epoch % cfg.training.checkpoint_every) == 0 and not (
+                        self.epoch == 0 and cfg.training.get('skip_initial_rollout', False)):
                     # checkpointing
                     if cfg.checkpoint.save_last_ckpt:
                         self.save_checkpoint()

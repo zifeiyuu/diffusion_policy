@@ -13,7 +13,7 @@ def main():
     start=time.perf_counter();source=DATA/'source/image_v141.hdf5'
     converter=RobomimicAbsoluteActionConverter(str(DATA/'source/low_dim_v141.hdf5'))
     converter.env.reset();converter.abs_env.reset()
-    ae=np.load('/home/zxiao93/Documents/LaDiWM/results/dp_square_3050_20260920/cache/point_ae.npy',mmap_mode='r')
+    ae=np.load('/home/zxiao93/Documents/LaDiWM/results/dp_shared_cache/point_ae.npy',mmap_mode='r')
     errors=[];offset=0
     # Each trajectory can resume conversion independently after an interruption.
     with h5py.File(source,'r') as src,h5py.File(target,'a') as dst:
