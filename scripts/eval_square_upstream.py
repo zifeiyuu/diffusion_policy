@@ -62,7 +62,10 @@ class Sim:
         self.conn=self.listener.accept();self.send('init',dataset_root=str(DATA));self.recv()
     def send(self,op,**kw):self.conn.send(dict(operation=op,**kw))
     def recv(self):
-        if not self.conn.poll(90):raise TimeoutError('Simulator timeout')
+        if not self.conn.poll(90):
+            self.log.flush();self.log.seek(0)
+            detail=self.log.read()[-4000:]
+            raise TimeoutError(f'Simulator timeout: pid={self.process.pid}, exit={self.process.poll()}, worker log={detail}')
         r=decode(self.conn.recv())
         if 'error' in r:raise RuntimeError(r['error'])
         return r
@@ -208,5 +211,5 @@ def evaluate(a):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--run',required=True);p.add_argument('--split',choices=['valid','random_saved'],required=True)
-    p.add_argument('--batch',type=int,default=8);p.add_argument('--limit',type=int);p.add_argument('--max-steps',type=int,default=400)
+    p.add_argument('--batch',type=int,default=2);p.add_argument('--limit',type=int);p.add_argument('--max-steps',type=int,default=400)
     evaluate(p.parse_args())
