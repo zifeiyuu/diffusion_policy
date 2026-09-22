@@ -12,16 +12,14 @@ Budgets are separate experiments with separate cosine schedules. Do not resume a
 
 ## Push code to your own remote
 
-Current `origin` is `https://github.com/real-stanford/diffusion_policy.git`. First create an empty personal GitHub repository (or fork), then replace the URL below. These commands are instructions, not actions already performed:
+Current `origin` is the upstream `https://github.com/real-stanford/diffusion_policy.git`. The personal repository is `https://github.com/zifeiyuu/diffusion_policy.git`, branch `main`. The local `personal` remote fetches over HTTPS and pushes over SSH. For subsequent code updates:
 
 ```bash
 cd /home/zxiao93/Documents/diffusion_policy
-git switch -c square-flow-skynet
 git add .gitignore run_skynet.sh scripts/
 git diff --cached --stat
-git commit -m "Add aligned Square image/point-flow DP and Skynet launcher"
-git remote add personal git@github.com:YOUR_ACCOUNT/diffusion_policy.git
-git push -u personal square-flow-skynet
+git commit -m "Update Square DP tooling"
+git push personal main
 ```
 
 `others/` contains reference scripts and is not required at runtime; add it separately only if you want to publish it. The new ignore patterns exclude HDF5, weights, arrays, videos and Slurm logs. Existing tracked files are unaffected. Never add the dataset, cache, checkpoints, or Conda directories to Git.
@@ -31,7 +29,7 @@ On Skynet:
 ```bash
 mkdir -p /nethome/zxiao93/code
 cd /nethome/zxiao93/code
-git clone --branch square-flow-skynet git@github.com:YOUR_ACCOUNT/diffusion_policy.git
+git clone git@github.com:zifeiyuu/diffusion_policy.git
 cd diffusion_policy
 mkdir -p skynet_logs  # Must exist BEFORE sbatch opens its log files.
 ```
