@@ -35,7 +35,7 @@ def main():
     if finished==2:
         rates={m:[read(O/f'{m}_seed42'/s/'results.json')['success_rate']*100 for s in ['valid','random_saved']] for m in ['image','point_ae']}
         conclusion=f"Both100-epoch models and all140 evaluation episodes are complete. PointAE minus RGB SR: {rates['point_ae'][0]-rates['image'][0]:+.2f} percentage points on Eval20 and {rates['point_ae'][1]-rates['image'][1]:+.2f} points on Random50. This is one training seed; no statistical-significance claim."
-    body=intro+'\n\n'+conclusion+'\n\n'+table+dtable+'\n\n'+costs+'\n\n'+limits
+    body=('**SUPERSEDED: stopped at user request. This delta-action / cosine100 experiment is not an unchanged upstream DP reproduction. Historical results are retained; do not use as the corrected baseline.**\n\n' if state['state']=='stopped_superseded' else '')+intro+'\n\n'+conclusion+'\n\n'+table+dtable+'\n\n'+costs+'\n\n'+limits
     (R/'README.md').write_text('# Image DP versus frozen PointAE DP:100 epochs,seed42\n\n'+body+'\n\n## Evidence\n\n'+evidence+'\n\nRun from diffusion_policy with `robodiff/bin/python scripts/queue_square_100.py`. Local outputs: `'+str(O)+'`. Original3050-epoch runs remain stopped and separate.\n')
     register_report(R/'README.md',entry=body)
     summary=L/'experiment_logs/summary/README.md';text=summary.read_text();a='<!-- dp-square-100-ae:start -->';b='<!-- dp-square-100-ae:end -->'

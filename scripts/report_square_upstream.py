@@ -1,0 +1,50 @@
+"""Report the corrected upstream configuration separately from the superseded run."""
+from pathlib import Path
+import json,sys,re,shutil
+L=Path('/home/zxiao93/Documents/LaDiWM');O=L/'results/dp_upstream_abs100_20260922';R=L/'experiment_logs/2026-09-22/dp_upstream_abs100'
+sys.path.insert(0,str(L));from scripts.experiment_journal import register_report
+
+def read(p):return json.loads(p.read_text()) if p.exists() else None
+def main():
+    R.mkdir(parents=True,exist_ok=True);state=read(O/'queue_status.json') or {'state':'preparing'}
+    rows=['| Model / checkpoint | Epoch (zero-based) | Eval20 SR | Random50 SR | Trainer wall min | Evaluator wall min 20 / 50 | Success makespan sec 20 / 50 |','|---|---:|---:|---:|---:|---:|---:|']
+    for m in ['image','point_ae']:
+        run=O/f'{m}_seed42';complete=read(run/'complete.json')
+        for label in ['best','last']:
+            folder=Path(complete['best_rollout']) if complete and label=='best' else run/'last' if label=='last' else None
+            ev=[read(folder/s/'results.json') if folder else None for s in ['valid','random_saved']]
+            score=lambda e:f"{e['successes']}/{e['requested_episodes']} ({e['success_rate']*100:.1f}%)" if e and e['complete'] else 'Pending'
+            val=lambda e,k:f"{e[k]/60:.2f}" if e and e['complete'] else 'NR'
+            makespan=lambda e:f"{e['task_makespan']['success_sim_seconds']['mean']:.2f}" if e and e['complete'] and e['task_makespan']['success_count'] else 'NR'
+            epoch=complete['best_epoch'] if label=='best' and complete else 99 if label=='last' else 'Pending'
+            wall=f"{complete['total_trainer_wall_seconds']/60:.2f}" if complete else 'Pending'
+            rows.append(f"| {m} / {label} | {epoch} | {score(ev[0])} | {score(ev[1])} | {wall} | {' / '.join(val(e,'evaluator_wall_seconds') for e in ev)} | {' / '.join(makespan(e) for e in ev)} |")
+            if folder:
+                for split,e in zip(['valid','random_saved'],ev):
+                    if not e or not e['complete']:continue
+                    dst=R/m/label/split;dst.mkdir(parents=True,exist_ok=True)
+                    for p in (folder/split).iterdir():
+                        if p.suffix in ['.json','.npz','.mp4']:shutil.copy2(p,dst/p.name)
+        dest=R/'artifacts'/m;dest.mkdir(parents=True,exist_ok=True)
+        for name in ['complete.json','config.yaml','original_config.json']:
+            if (run/name).exists():shutil.copy2(run/name,dest/name)
+    text='''Question: compare image DP and frozen PointAE DP with upstream Hybrid DP settings, changing only the training stop, LaDiWM split/evaluation, and AE observation encoder.
+
+Configuration: upstream train_diffusion_unet_hybrid_workspace + square_image_abs, seed42; absolute XYZ + rotation6d + gripper (10 policy outputs, 7 absolute OSC controls); original optimizer, batch64, DDPM100, EMA, crop, data sampler and normalization. The cosine scheduler retains the original3050-epoch budget; execution stops after100 completed epochs. Upstream normalizer statistics use all replay frames, unchanged. Data masks are LaDiWM180 train /20 validation. Original periodic rollout/checkpoint intervals50 remain unchanged (zero-based epochs0 and50). Top5 checkpoints use Random50 test/mean_score; Random50 therefore participates in checkpoint selection, and its best-checkpoint SR is not an untouched test estimate. Earliest epoch resolves equal SRs in the reported best. Explicit endpoint checkpoint last_epoch_0099.ckpt includes online model, EMA and optimizer; both best and last EMA policies are reported.
+
+PointAE changes only visual conditioning: existing frozen LaDiWM AE,128D/frame, concatenated with unchanged robot state. AE weights/data exposure/pretraining cost are reused and not counted as fresh DP training. Both policies retain the same diffusion backbone and training settings. The AE feature uses upstream low-dimensional range normalization. Full parameter accounting must include the frozen AE.
+
+Runtime: policy, action conversion, and simulator use robodiff. Training observations are existing v1.4.1 data; paired evaluation restores LaDiWM state vectors into native official robosuite1.2.0, not its incompatible v1.4.1 XML. This version/asset difference remains explicit. Absolute targets are derived by the upstream RobomimicAbsoluteActionConverter; source images, robot observations, actions and masks are preserved in their original files.
+
+Cost: trainer wall includes setup, periodic rollouts, validation and checkpoint writes. Periodic evaluator wall is a subset, not an additional independent training cost. Last-checkpoint evaluations run after training and are additional. Full evaluator wall includes initialization, inference, simulator, video and saving. JSON records amortized batched inference and warm batch1 timings separately; batching is capped at8. Successful task makespan is executed controls/20Hz; failures are censored at400 steps. No monetary or energy cost measured. Training and evaluation results remain pending until measured. Prior delta/cosine100 results are superseded and retained separately.
+'''
+    body=text+'\nStatus: `'+str(state)+'`.\n\n'+'\n'.join(rows)+'\n\nRaw artifacts: `'+str(O)+'`.\n'
+    (R/'README.md').write_text('# Upstream absolute-action DP:100-epoch stop, image and PointAE\n\n'+body)
+    register_report(R/'README.md',entry=body)
+    summary=L/'experiment_logs/summary/README.md';s=summary.read_text();a='<!-- dp-upstream-abs100:start -->';b='<!-- dp-upstream-abs100:end -->'
+    block=a+'\n## Corrected upstream DP: image and PointAE (100-epoch stop)\n\n'+body+'\n[Evidence](../2026-09-22/dp_upstream_abs100/README.md).\n'+b
+    if a in s:s=re.sub(re.escape(a)+'.*?'+re.escape(b),lambda _:block,s,flags=re.S)
+    else:
+        title,rest=s.split('\n',1);s=title+'\n\n'+block+'\n'+rest
+    summary.write_text(s)
+if __name__=='__main__':main()

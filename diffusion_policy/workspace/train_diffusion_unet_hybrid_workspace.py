@@ -150,7 +150,9 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         with JsonLogger(log_path) as json_logger:
-            for local_epoch_idx in range(cfg.training.num_epochs):
+            # Optional early stop preserves the full-budget learning-rate schedule.
+            for local_epoch_idx in range(min(cfg.training.num_epochs,
+                    cfg.training.get('stop_after_epochs', cfg.training.num_epochs))):
                 step_log = dict()
                 # ========= train for this epoch ==========
                 train_losses = list()
