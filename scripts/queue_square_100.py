@@ -33,7 +33,7 @@ def main():
   for m in ['image','point_ae']:
    folder=O/f'{m}_seed42'
    if not (folder/'complete.json').exists():run(m+'_train',['scripts/train_square_aligned.py','--modality',m,'--seed','42','--epochs','100','--save-every','10'])
-   for split in ['valid','random_saved']:run(m+'_'+split,['scripts/eval_square_aligned.py','--run',str(folder),'--split',split])
+   for split in ['valid','random_saved']:run(m+'_'+split,['scripts/eval_square_100_batched.py','--run',str(folder),'--split',split])
    assert all(json.loads((folder/s/'results.json').read_text())['complete'] for s in ['valid','random_saved'])
    (folder/'latest.pt').unlink(missing_ok=True)
   status('complete','two100-epoch models and four evaluations');report()
