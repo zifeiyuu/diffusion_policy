@@ -27,7 +27,7 @@ class Simulator:
         self.log=open(Path(self.tmp.name)/'worker.log','w+')
         self.listener=Listener(str(Path(self.tmp.name)/'socket'),family='AF_UNIX',authkey=b'dp-square-local')
         self.process=subprocess.Popen([os.environ.get('DP_SIM_PYTHON','/home/zxiao93/anaconda3/envs/kguide/bin/python'),
-            str(Path(__file__).with_name('square_dp_sim_worker.py')),self.listener.address],
+            str(Path(__file__).with_name(os.environ.get('DP_SIM_WORKER','square_dp_sim_worker.py'))),self.listener.address],
             stdout=self.log,stderr=self.log,env={**os.environ,'MUJOCO_GL':'egl'})
         self.listener._listener._socket.settimeout(60)
         try:
@@ -90,7 +90,7 @@ def evaluate(a):
     records=[];ae_ms=[];sample_ms=[];sim_ms=[];max_action_excess=0.;torch.cuda.reset_peak_memory_stats()
     def save(complete=False):
         result=dict(complete=complete,smoke=bool(a.limit),modality=cfg['modality'],training_seed=cfg['seed'],
-            split=a.split,checkpoint=str(checkpoint),checkpoint_sha256=checkpoint_hash,checkpoint_epoch=cfg['epochs']-1,
+            split=a.split,simulator_python=os.environ.get('DP_SIM_PYTHON','/home/zxiao93/anaconda3/envs/kguide/bin/python'),simulator_worker=os.environ.get('DP_SIM_WORKER','square_dp_sim_worker.py'),checkpoint=str(checkpoint),checkpoint_sha256=checkpoint_hash,checkpoint_epoch=cfg['epochs']-1,
             successes=sum(x['success'] for x in records),completed_episodes=len(records),requested_episodes=expected,
             success_rate=float(np.mean([x['success'] for x in records])) if records else None,
             max_action_roundoff_clipped=max_action_excess,
