@@ -138,3 +138,17 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Square training artifacts: transfer outside Git.
+skynet_logs/
+*.hdf5
+*.h5
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.npz
+*.mp4
+
+# Local transfer bundle; upload with rsync, never Git.
+/skynet_upload/

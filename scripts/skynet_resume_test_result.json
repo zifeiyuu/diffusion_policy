@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "deadline_exit": 75,
+  "resumed_epoch": 1,
+  "resumed_global_step": 2,
+  "note": "Isolated two-update smoke test; not a restarted benchmark or SR result."
+}
