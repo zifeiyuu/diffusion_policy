@@ -97,10 +97,34 @@ def _prepare():
     return info
 
 
+def prepare_ae(info):
+    from square_point_ae import FrozenPointAE, ae_sha
+    cache=OUT/'cache';path=cache/'point_ae.npy';meta=cache/'point_ae_manifest.json'
+    expected=dict(ae_sha256=ae_sha(),base_manifest_sha256=digest(cache/'manifest.json'),
+                  input='absolute pixel XY reshaped16x16 in existing point order; no flow difference',
+                  frozen=True,latent_dim=128,ae_pretraining_split='Not documented by supplied weight provenance')
+    with (OUT/'ae_prepare.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        if meta.exists():
+            assert json.loads(meta.read_text())==expected
+            assert path.exists()
+            return expected
+        model=FrozenPointAE();tmp=cache/'point_ae.tmp.npy'
+        result=np.lib.format.open_memmap(tmp,mode='w+',dtype='f4',shape=(info['ends'][-1],128))
+        offset=0
+        for name,length in zip(info['names'],info['lengths']):
+            with h5py.File(DATA/f'gt_geometry/episodes/{name}.hdf5') as f:
+                points=torch.from_numpy(f['points_xy'][:].astype('f4'))
+            result[offset:offset+length]=model(points).numpy();offset+=length
+        result.flush();del result;tmp.replace(path);write_json(meta,expected)
+        return expected
+
+
 class SquareDataset(Dataset):
     def __init__(self, modality, split, manifest=None):
         self.info = manifest or prepare(); self.modality=modality
-        self.keys = ROBOT + (RGB if modality == 'image' else ['point_flow'])
+        if modality=='point_ae': self.ae_info=prepare_ae(self.info)
+        self.keys = ROBOT + (RGB if modality == 'image' else [modality])
         self.arrays = {k:np.load(OUT/'cache'/f'{k}.npy',mmap_mode='r') for k in self.keys+['action']}
         self.samples=[]; self.rows=[]; start=0
         for name, length in zip(self.info['names'],self.info['lengths']):
@@ -127,7 +151,7 @@ class SquareDataset(Dataset):
 
     def normalizer(self):
         n=LinearNormalizer()
-        for k in ROBOT+['action'] + (['point_flow'] if self.modality=='point_flow' else []):
+        for k in ROBOT+['action'] + ([self.modality] if self.modality in ['point_flow','point_ae'] else []):
             stat=array_to_stats(np.array(self.arrays[k][self.rows]))
             n[k]=(get_identity_normalizer_from_stat(stat) if k in ['action','robot0_eef_quat']
                   else get_range_normalizer_from_stat(stat))
@@ -145,6 +169,12 @@ class PointFlowEncoder(nn.Module):
         return torch.cat([self.net(obs['point_flow'])]+[obs[k] for k in ROBOT],dim=-1)
 
 
+class CachedPointAEEncoder(nn.Module):
+    """No trainable feature encoder: concatenate cached latent128 and robot9."""
+    def forward(self,obs):
+        return torch.cat([obs['point_ae']]+[obs[k] for k in ROBOT],dim=-1)
+
+
 def make_policy(modality):
     shape_meta=dict(action=dict(shape=[7]),obs={
         **{k:dict(shape=[3,84,84],type='rgb') for k in RGB},
@@ -159,4 +189,8 @@ def make_policy(modality):
     if modality=='point_flow':
         assert p.obs_feature_dim == 137, p.obs_feature_dim
         p.obs_encoder=PointFlowEncoder()
+    elif modality=='point_ae':
+        assert p.obs_feature_dim==137
+        p.obs_encoder=CachedPointAEEncoder()
+    print("Selected observation encoder parameters:",sum(x.numel() for x in p.obs_encoder.parameters()))
     return p

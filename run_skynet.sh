@@ -23,7 +23,7 @@ SEED=${3:-42}
 EPOCHS=${4:-3050}
 CONTINUATIONS=${5:-0}
 case "$MODE" in prepare|verify|train|eval) ;; *) echo 'Mode must be prepare, verify, train, or eval' >&2; exit 2;; esac
-case "$MODALITY" in image|point_flow) ;; *) echo 'Modality must be image or point_flow' >&2; exit 2;; esac
+case "$MODALITY" in image|point_flow|point_ae) ;; *) echo 'Modality must be image, point_flow, or point_ae' >&2; exit 2;; esac
 [[ "$SEED" =~ ^[0-9]+$ && "$EPOCHS" =~ ^[1-9][0-9]*$ && "$CONTINUATIONS" =~ ^[0-9]+$ ]] || exit 2
 export DP_DATA_ROOT=${DP_DATA_ROOT:-/coc/flash2/zxiao93/datasets/robomimic/square/ph}
 export DP_BANK_ROOT=${DP_BANK_ROOT:-/coc/flash2/zxiao93/datasets/robomimic/square/random50}

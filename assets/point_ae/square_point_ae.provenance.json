@@ -1,0 +1,5 @@
+{
+  "source": "/home/zxiao93/Documents/K-Steer/models/ae_square/final_model.pth",
+  "sha256": "c43c14af5d9881621d2306a4f0d3b3120d9b9027d7301f7ccdb2b3fbc072300f",
+  "role": "Frozen existing K-Steer PointAE, not retrained"
+}

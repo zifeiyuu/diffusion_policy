@@ -49,10 +49,13 @@ class Simulator:
     def __exit__(self,*args):self.close()
 
 
-def feature(obs,previous,modality):
+def feature(obs,previous,modality,ae=None):
     f={k:np.asarray(obs[k],dtype='f4') for k in ROBOT}
     if modality=='image':
         f.update({k:np.moveaxis(obs[k],-1,0).astype('f4')/255. for k in RGB})
+    elif modality=='point_ae':
+        assert ae is not None
+        f['point_ae']=ae(torch.as_tensor(obs['points'][None],device=next(ae.parameters()).device))[0].cpu().numpy()
     else:
         p=obs['points']/np.array([640,480],dtype='f4')
         prev=p if previous is None else previous/np.array([640,480],dtype='f4')
@@ -73,13 +76,18 @@ def evaluate(a):
     assert saved['epoch']==cfg['epochs']-1
     assert a.limit or not cfg['smoke']
     model=make_policy(cfg['modality']);model.load_state_dict(saved['model']);model.cuda().eval();del saved
+    ae=None
+    if cfg['modality']=='point_ae':
+        from square_point_ae import FrozenPointAE,ae_sha
+        assert cfg['point_ae']['ae_sha256']==ae_sha()
+        ae=FrozenPointAE().cuda()
     manifest=json.loads((OUT/'cache/manifest.json').read_text())
     assert digest(OUT/'cache/manifest.json')==cfg['manifest_sha256']
     if a.split=='random_saved':
         for name,sha in manifest['random_bank'].items():assert digest(BANK/name)==sha
     names=manifest['splits']['valid'];expected=20 if a.split=='valid' else 50
     count=min(a.limit,expected) if a.limit else expected
-    records=[];sample_ms=[];sim_ms=[];max_action_excess=0.;torch.cuda.reset_peak_memory_stats()
+    records=[];ae_ms=[];sample_ms=[];sim_ms=[];max_action_excess=0.;torch.cuda.reset_peak_memory_stats()
     def save(complete=False):
         result=dict(complete=complete,smoke=bool(a.limit),modality=cfg['modality'],training_seed=cfg['seed'],
             split=a.split,checkpoint=str(checkpoint),checkpoint_sha256=checkpoint_hash,checkpoint_epoch=cfg['epochs']-1,
@@ -87,6 +95,11 @@ def evaluate(a):
             success_rate=float(np.mean([x['success'] for x in records])) if records else None,
             max_action_roundoff_clipped=max_action_excess,
             task_makespan=task_metrics(records),
+            frozen_ae_sha256=cfg.get('point_ae',{}).get('ae_sha256'),
+            frozen_ae_calls=len(ae_ms),frozen_ae_total_seconds=float(np.sum(ae_ms))/1000,
+            frozen_ae_mean_ms=float(np.mean(ae_ms)) if ae_ms else None,
+            frozen_ae_p95_ms=float(np.percentile(ae_ms,95)) if ae_ms else None,
+            combined_policy_compute_seconds=(float(np.sum(sample_ms))+float(np.sum(ae_ms)))/1000,
             sampling_total_seconds=float(np.sum(sample_ms))/1000,
             sampling_calls=len(sample_ms),simulator_total_seconds=float(np.sum(sim_ms))/1000,
             evaluator_source_sha256=digest(Path(__file__)),metrics_source_sha256=digest(Path(__file__).with_name('square_dp_metrics.py')),
@@ -115,13 +128,17 @@ def evaluate(a):
             tick=time.perf_counter();success=False
             try:
                 for t in range(a.max_steps):
-                    f=feature(obs,previous,cfg['modality']);previous=obs['points'].copy()
+                    if ae is not None:torch.cuda.synchronize()
+                    ft=time.perf_counter()
+                    f=feature(obs,previous,cfg['modality'],ae);previous=obs['points'].copy()
+                    if ae is not None:
+                        torch.cuda.synchronize();ae_ms.append(1000*(time.perf_counter()-ft))
                     if not history:history.append(f)
                     history.append(f);poses.append(np.concatenate([obs[k] for k in ROBOT]))
                     if writer:writer.append_data(obs['rgb'])
                     if not actions:
                         batch={k:torch.as_tensor(np.stack([x[k] for x in history])[None],device='cuda') for k in f}
-                        if not is_image: batch['point_flow'][:,0,512:] = 0.
+                        if cfg['modality']=='point_flow': batch['point_flow'][:,0,512:] = 0.
                         torch.cuda.synchronize();ts=time.perf_counter()
                         prediction=model.predict_action(batch)['action'][0].cpu().numpy()
                         torch.cuda.synchronize();sample_ms.append(1000*(time.perf_counter()-ts))
@@ -133,7 +150,7 @@ def evaluate(a):
                         # Matches the OSC controller's existing [-1,1] input clipping.
                         prediction=np.clip(prediction,-1.,1.)
                         actions.extend(prediction);replans.append(t)
-                        if not is_image:inputs.append(batch['point_flow'].cpu().numpy()[0])
+                        if not is_image:inputs.append(batch[cfg['modality']].cpu().numpy()[0])
                     action=actions.popleft();trace.append(action)
                     ts=time.perf_counter();obs=sim.request('step',action=action,image=is_image,video=video)
                     sim_ms.append(1000*(time.perf_counter()-ts));success=obs['success']
@@ -144,7 +161,8 @@ def evaluate(a):
                 if writer:writer.close()
             np.testing.assert_array_equal(replans,np.arange(0,len(trace),8))
             np.savez_compressed(report/f'trajectory_{i:03d}.npz',actions=np.asarray(trace),robot=np.asarray(poses),
-                replan_steps=replans,point_flow_inputs=np.asarray(inputs))
+                replan_steps=replans,visual_inputs=np.asarray(inputs),visual_input_kind=cfg["modality"],
+                point_flow_inputs=np.asarray(inputs) if cfg["modality"]=="point_flow" else np.empty((0,)))
             record=dict(episode=i,demo_name=names[i] if a.split=='valid' else None,success=bool(success),
                 steps=len(trace),seconds=time.perf_counter()-tick,execution_wall_seconds=execution_wall_seconds,
                 task_sim_seconds=len(trace)/20,

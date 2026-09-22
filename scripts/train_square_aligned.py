@@ -62,12 +62,14 @@ def train(a):
         manifest_sha256=digest(OUT/'cache/manifest.json'),parameter_count=sum(p.numel() for p in model.parameters()),
         torch=torch.__version__,gpu=torch.cuda.get_device_name(),smoke=a.max_batches is not None,
         code_sha256={p.name:digest(p) for p in Path(__file__).parent.glob('*square*.py')})
+    if a.modality=='point_ae':config['point_ae']=train_set.ae_info
     first_epoch=0;prior_wall=0.;epoch_sum=0.;global_step=0
     latest=output/'latest.pt'
     if latest.exists():
         saved=torch.load(latest,map_location='cpu')
         for k in ['modality','seed','epochs','manifest_sha256','smoke']:
             assert saved['config'][k]==config[k],k
+        if a.modality=='point_ae':assert saved['config']['point_ae']==config['point_ae']
         model.load_state_dict(saved['model']);ema_model.load_state_dict(saved['ema'])
         # Normalizer's custom loader rebuilds parameters on the checkpoint device.
         model.cuda();ema_model.cuda()
@@ -92,7 +94,9 @@ def train(a):
             loss.backward()
             if bi==0 and epoch==first_epoch:
                 encoder_grad=sum(float(p.grad.detach().square().sum()) for p in model.obs_encoder.parameters() if p.grad is not None)**.5
-                assert np.isfinite(encoder_grad) and encoder_grad>0
+                if a.modality=='point_ae':
+                    assert encoder_grad==0 and not list(model.obs_encoder.parameters())
+                else:assert np.isfinite(encoder_grad) and encoder_grad>0
                 print('Trainable encoder gradient L2:',encoder_grad,flush=True)
             optimizer.step();schedule.step();ema.step(model)
             losses.append(loss.item());global_step+=1
@@ -130,7 +134,7 @@ def train(a):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--modality',choices=['image','point_flow'],required=True)
+    p.add_argument('--modality',choices=['image','point_flow','point_ae'],required=True)
     p.add_argument('--seed',type=int,required=True);p.add_argument('--epochs',type=int,default=3050)
     p.add_argument('--output');p.add_argument('--max-batches',type=int)
     p.add_argument('--deadline',type=float,help='Unix timestamp; save at the next epoch boundary and exit75')

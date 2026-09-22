@@ -100,3 +100,20 @@ Evaluation additionally requires the LaDiWM checkout containing `ladiwm/kubm/geo
 Alternatively download run folders and the unchanged shared cache manifest to Sirius, set `DP_OUTPUT_ROOT` to the downloaded budget root, and execute `scripts/eval_square_aligned.py --run ... --split valid` and `--split random_saved` using Sirius robodiff/kguide. Preserve the cache `manifest.json` byte-for-byte: its SHA256 is tied to checkpoints. Restore data and bank paths using the documented environment variables.
 
 Both splits write `results.json`, initial states, trajectories and first-three-episode videos. Records include success rate, full evaluator wall, inference mean/P95 and summed inference time, peak GPU, and task makespan (success steps/20Hz and execution wall; failed episodes reported separately). Sync those artifacts and training `complete.json` back into LaDiWM for the combined report. Shorter-budget experiments must receive their own report/IDs rather than overwriting the3050 baseline.
+
+## Frozen existing PointAE variant
+
+The additional modality `point_ae` mirrors the cached-feature training approach in `others`: frozen AE latent128 concatenated directly with measured robot9, without another trainable feature MLP. The AE itself is still required online to encode live projected points. It is bundled in `assets/point_ae/square_point_ae.pt` (~14KB), so `git pull` brings both code and weights; no extra dataset upload is needed. `DP_AE_PATH` may relocate the same checkpoint; its SHA256 must match. AE pretraining split/cost are undocumented, unlike the from-scratch encoders. Keep this comparison labeled separately.
+
+```bash
+sbatch --time=00:20:00 run_skynet.sh verify point_ae 42 100
+sbatch run_skynet.sh train point_ae 42 100
+# Once training completes and simulator dependencies are ready:
+sbatch run_skynet.sh eval point_ae 42 100
+```
+
+For three seeds, repeat with42,43,44. The original six-job local queue remains image/point_flow only; it does not silently launch this new experiment. Full benchmark training remains stopped locally.
+
+Data cache construction adds `cache/point_ae.npy` (~15MB) and `point_ae_manifest.json` without changing the original shared manifest. Cache keys bind the original manifest and AE checksum. Latents are extracted from original absolute pixel coordinates; the stored coordinate-displacement cache is not repurposed as AE input. The existing train180/valid20, action windows and Eval20/Random50 reset protocol remain unchanged. Train normalization uses only train180; no claim is made about whether the external AE's original pretraining saw validation demos.
+
+Evaluation records frozen-AE calls/mean/P95/total time separately from DP sampling; `combined_policy_compute_seconds` sums both. AE cost is measured on every observed control frame, DP sampling at each8-step replan. Success rates and task makespan remain in `results.json`. Feature precomputation, if first created by this training invocation, is included in trainer wall; cached features are reused for subsequent seeds. The large255.6M-parameter action UNet is unchanged, so freezing this small encoder does not imply an order-of-magnitude training speedup. The original two-variant3050 report is not automatically expanded; new AE results must be reported as their own experiment with provenance and pretraining limitations.

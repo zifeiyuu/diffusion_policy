@@ -152,3 +152,6 @@ skynet_logs/
 
 # Local transfer bundle; upload with rsync, never Git.
 /skynet_upload/
+
+# Tiny, explicitly versioned pretrained PointAE (about 14 KB).
+!assets/point_ae/square_point_ae.pt

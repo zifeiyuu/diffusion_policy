@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "upstream_encoder_numerical_parity": true,
+  "cache_latent_parity": true,
+  "ae_frozen": true,
+  "additional_observation_encoder_parameters": 0,
+  "training_updates": 2,
+  "closed_loop_control_steps": 9,
+  "replans": 2,
+  "ae_sha256": "c43c14af5d9881621d2306a4f0d3b3120d9b9027d7301f7ccdb2b3fbc072300f",
+  "note": "Smoke verification only, not an SR benchmark. Temporary smoke weights discarded."
+}
