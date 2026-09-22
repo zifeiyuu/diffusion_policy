@@ -30,6 +30,9 @@ def main():
     evidence='\n'.join(f'- {m} {s}: [results]({m}/{s}/results.json), [video0]({m}/{s}/episode_000.mp4), [video1]({m}/{s}/episode_001.mp4), [video2]({m}/{s}/episode_002.mp4).' for m in ['image','point_ae'] for s in ['valid','random_saved'] if (R/m/s/'results.json').exists())
     table='\n'.join(rows);dtable=('\n\n| Modality | Set | Successes | Success makespan sec: mean/median/P95 | Policy sampling ms:amortized/warm B1 | Total AE forward sec | Peak GPU MiB |\n|---|---|---:|---:|---:|---:|---:|\n'+'\n'.join(duration)) if duration else ''
     conclusion=f"Status: **{state['state']}**, job `{state.get('job','')}`. {finished}/2 models have completed training and both evaluation sets. Results are final only when both models finish; no comparative conclusion from partial results."
+    if finished==2:
+        rates={m:[read(O/f'{m}_seed42'/s/'results.json')['success_rate']*100 for s in ['valid','random_saved']] for m in ['image','point_ae']}
+        conclusion=f"Both100-epoch models and all140 evaluation episodes are complete. PointAE minus RGB SR: {rates['point_ae'][0]-rates['image'][0]:+.2f} percentage points on Eval20 and {rates['point_ae'][1]-rates['image'][1]:+.2f} points on Random50. This is one training seed; no statistical-significance claim."
     body=intro+'\n\n'+conclusion+'\n\n'+table+dtable+'\n\n'+costs+'\n\n'+limits
     (R/'README.md').write_text('# Image DP versus frozen PointAE DP:100 epochs,seed42\n\n'+body+'\n\n## Evidence\n\n'+evidence+'\n\nRun from diffusion_policy with `robodiff/bin/python scripts/queue_square_100.py`. Local outputs: `'+str(O)+'`. Original3050-epoch runs remain stopped and separate.\n')
     register_report(R/'README.md',entry=body)

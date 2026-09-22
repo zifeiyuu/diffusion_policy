@@ -37,6 +37,7 @@ def main():
    assert all(json.loads((folder/s/'results.json').read_text())['complete'] for s in ['valid','random_saved'])
    (folder/'latest.pt').unlink(missing_ok=True)
   status('complete','two100-epoch models and four evaluations');report()
+  with (O/'publish.log').open('a') as f:subprocess.run([sys.executable,'scripts/publish_square_100.py'],stdout=f,stderr=subprocess.STDOUT,check=True)
  except BaseException as e:
   status('failed',str(e));report();raise
 if __name__=='__main__':main()
