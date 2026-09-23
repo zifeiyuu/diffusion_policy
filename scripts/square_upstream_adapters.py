@@ -32,7 +32,7 @@ def ae_policy(base):
 
 class PairedRunner(BaseImageRunner):
     def __init__(self,output_dir,modality,down_dims=None,architecture="unet"):
-        super().__init__(output_dir);self.modality=modality;self.index=1;self.down_dims=down_dims;self.architecture=architecture
+        super().__init__(output_dir);self.modality=modality;self.index=1;self.down_dims=list(down_dims) if down_dims is not None else None;self.architecture=architecture
     def run(self,policy):
         epoch=self.index*50;self.index+=1
         folder=Path(self.output_dir)/'rollouts'/f'epoch_{epoch:04d}';folder.mkdir(parents=True,exist_ok=True)
