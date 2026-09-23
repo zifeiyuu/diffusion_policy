@@ -8,21 +8,23 @@ from diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace import Tra
 from square_upstream_adapters import config
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--modality',choices=['image','point_ae'],required=True);a=parser.parse_args()
-    root=Path('/home/zxiao93/Documents/LaDiWM/results/dp_upstream_abs100_20260922')/f'{a.modality}_seed42'
+    parser=argparse.ArgumentParser();parser.add_argument('--modality',choices=['image','point_ae'],required=True);parser.add_argument('--small',action='store_true');a=parser.parse_args()
+    root=Path('/home/zxiao93/Documents/LaDiWM/results')/('dp_small100_20260923' if a.small else 'dp_upstream_abs100_20260922')/f'{a.modality}_seed42'
     root.mkdir(parents=True,exist_ok=True)
     if (root/'complete.json').exists():return
-    cfg,original=config(a.modality)
+    dims=[88,176,352] if a.small else None
+    cfg,original=config(a.modality,down_dims=dims)
     assert cfg.training.num_epochs==3050 and cfg.training.stop_after_epochs==100
     OmegaConf.save(cfg,root/'config.yaml');(root/'original_config.json').write_text(json.dumps(original,indent=2)+'\n')
     (root/'code_sha256.json').write_text(json.dumps({str(p.relative_to(Path(__file__).resolve().parents[1])):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),Path(__file__).with_name('square_upstream_adapters.py'),Path(__file__).with_name('eval_square_upstream.py'),Path(__file__).resolve().parents[1]/'diffusion_policy/workspace/train_diffusion_unet_hybrid_workspace.py']},indent=2)+'\n')
+    (root/'train_started.json').write_text(json.dumps({'unix_time':time.time()})+'\n')
     started=time.perf_counter();workspace=TrainDiffusionUnetHybridWorkspace(cfg,output_dir=str(root));workspace.run()
     if workspace._saving_thread:workspace._saving_thread.join()
     # Upstream periodic latest only reaches epoch 50 in a 100-epoch run.
     # Explicitly preserve the actual endpoint with model, EMA, and optimizer.
     workspace.save_checkpoint(path=root/'checkpoints/last_epoch_0099.ckpt',use_thread=False)
     endpoint=root/'last';endpoint.mkdir(exist_ok=True)
-    torch.save(dict(model={k:v.detach().cpu() for k,v in workspace.ema_model.state_dict().items()},config=dict(modality=a.modality,seed=42,epochs=100,smoke=False),epoch=99),endpoint/'policy.pt')
+    torch.save(dict(model={k:v.detach().cpu() for k,v in workspace.ema_model.state_dict().items()},config=dict(modality=a.modality,seed=42,epochs=100,smoke=False,down_dims=dims),epoch=99),endpoint/'policy.pt')
     choices=[]
     for p in (root/'rollouts').glob('epoch_*/random_saved/results.json'):
         r=json.loads(p.read_text());choices.append((r['success_rate'],r['checkpoint_epoch'],str(p.parent.parent)))
