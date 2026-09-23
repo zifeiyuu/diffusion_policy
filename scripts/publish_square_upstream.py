@@ -27,7 +27,7 @@ def main():
                 e=json.loads((folder/split/'results.json').read_text())
                 assert e['complete'] and e['completed_episodes']==n and e['batch1_upstream_sampler_parity']
                 assert e['checkpoint_epoch']==(99 if folder.name=='last' else t['best_epoch'])
-                assert all(x['absolute_controller_verified'] and x['initial_state_max_abs_error']<=1e-10 and x['simulator_runtime']['python']==sys.executable for x in e['episodes'])
+                assert all(x['absolute_controller_verified'] and x['initial_state_max_abs_error']<=1e-10 and x['simulator_runtime']['python']=='/home/zxiao93/anaconda3/envs/dp_eval141/bin/python' and x['simulator_runtime']['robosuite']=='1.4.1' for x in e['episodes'])
     (R/'artifacts/final_validation.json').write_text(json.dumps({'passed':True,'last_full_checkpoint_contains':['model','ema_model','optimizer'],'epochs_completed':100,'scheduler_epochs':3050,'both_best_and_last_evaluated':True},indent=2)+'\n')
     paths=PAGES+[str(R.relative_to(L))]
     staged=subprocess.check_output(['git','-C',str(L),'diff','--cached','--name-only'],text=True).splitlines()

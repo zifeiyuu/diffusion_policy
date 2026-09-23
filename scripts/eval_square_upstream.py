@@ -28,6 +28,7 @@ import hydra
 from diffusion_policy.model.common.rotation_transformer import RotationTransformer
 from square_point_ae import FrozenPointAE,ae_sha
 
+SIM_PYTHON='/home/zxiao93/anaconda3/envs/dp_eval141/bin/python'
 DATA=Path('/home/zxiao93/Documents/Datasets/robomimic/square/ph')
 BANK=ROOT/'results/kubm_square_all200/eval/20260916_230541'
 ROBOT=['robot0_eef_pos','robot0_eef_quat','robot0_gripper_qpos']
@@ -57,7 +58,7 @@ class Sim:
     def __init__(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='official_square_');self.log=open(Path(self.tmp.name)/'worker.log','w+')
         self.listener=Listener(str(Path(self.tmp.name)/'socket'),family='AF_UNIX',authkey=b'dp-square-local')
-        self.process=subprocess.Popen([sys.executable,str(Path(__file__).with_name('square_upstream_worker.py')),self.listener.address],stdout=self.log,stderr=self.log,env={**os.environ,'OPENBLAS_NUM_THREADS':'1','OMP_NUM_THREADS':'1'})
+        self.process=subprocess.Popen([SIM_PYTHON,str(Path(__file__).with_name('square_upstream_worker.py')),self.listener.address],stdout=self.log,stderr=self.log,env={**os.environ,'OPENBLAS_NUM_THREADS':'1','OMP_NUM_THREADS':'1'})
         self.listener._listener._socket.settimeout(60)
         self.conn=self.listener.accept();self.send('init',dataset_root=str(DATA));self.recv()
     def send(self,op,**kw):self.conn.send(dict(operation=op,**kw))
@@ -154,7 +155,7 @@ def evaluate(a):
                     with np.load(BANK/f'initial_{i:03d}.npz') as z:initial={k:z[k].item() if z[k].ndim==0 else z[k].copy() for k in z.files}
                 sim.send('reset',demo_name=names[i] if a.split=='valid' else None,initial_state=initial,image=modality=='image',video=i<3)
                 ob=sim.recv();assert not ob.pop('delta_controller') and not ob['success']
-                runtime=ob.pop('runtime');assert runtime['python']==sys.executable and runtime['robosuite']=='1.2.0'
+                runtime=ob.pop('runtime');assert runtime['python']==SIM_PYTHON and runtime['robosuite']=='1.4.1'
                 restored=ob.pop('initial_state');np.savez_compressed(folder/f'initial_{i:03d}.npz',**restored)
                 if a.split=='valid':
                     with h5py.File(DATA/'source/low_dim_v141.hdf5') as f:expected=f['data'][names[i]]['states'][0]

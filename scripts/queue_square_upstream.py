@@ -24,6 +24,18 @@ def main():
         assert (O/'preflight.json').exists(),'Both observation adapters must pass actual loss and rollout preflight first'
         for m in ['image','point_ae']:
             run(m+'_train',['scripts/train_square_upstream.py','--modality',m])
+            root=O/f'{m}_seed42'
+            for candidate in sorted((root/'rollouts').glob('epoch_*')):
+                for split in ['valid','random_saved']:
+                    run(m+'_'+candidate.name+'_'+split,['scripts/eval_square_upstream.py','--run',str(candidate),'--split',split])
+            candidates=[]
+            for candidate in (root/'rollouts').glob('epoch_*'):
+                e=json.loads((candidate/'random_saved/results.json').read_text())
+                candidates.append((e['success_rate'],e['checkpoint_epoch'],str(candidate)))
+            best=max(candidates,key=lambda x:(x[0],-x[1]))
+            record=json.loads((root/'complete.json').read_text())
+            record.update(best_sr=best[0],best_epoch=best[1],best_rollout=best[2],selection='Random50 SR in robosuite1.4.1; earliest epoch breaks ties')
+            (root/'complete.json').write_text(json.dumps(record,indent=2)+'\n')
             for s in ['valid','random_saved']:run(m+'_last_'+s,['scripts/eval_square_upstream.py','--run',str(O/f'{m}_seed42/last'),'--split',s])
         status('complete','Both models; best and last checkpoints evaluated');report()
         with (O/'publish.log').open('a') as f:

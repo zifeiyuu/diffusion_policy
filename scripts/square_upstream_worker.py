@@ -1,4 +1,4 @@
-"""Native official simulator for upstream absolute-action image and PointAE DP."""
+"""Dataset-matched1.4.1 simulator for upstream absolute-action image and PointAE DP."""
 import os
 os.environ.setdefault('MUJOCO_GL','egl')
 import json
@@ -45,7 +45,7 @@ def main():
                 if op=='init':
                     root=Path(d['dataset_root']);np.random.seed(42)
                     with h5py.File(root/'source/low_dim_v141.hdf5') as f:meta=json.loads(f['data'].attrs['env_args'])
-                    assert robosuite.__version__=='1.2.0'
+                    assert robosuite.__version__=='1.4.1'
                     ObsUtils.initialize_obs_utils_with_obs_specs({'obs':{'low_dim':['robot0_eef_pos','robot0_eef_quat','robot0_gripper_qpos','object']}})
                     meta['env_kwargs']['controller_configs']['control_delta']=False
                     env=EnvUtils.create_env_from_metadata(meta,render=False,render_offscreen=True,use_image_obs=False)
@@ -57,13 +57,8 @@ def main():
                             with h5py.File(root/'source/low_dim_v141.hdf5') as f:
                                 demo=f['data'][d['demo_name']];initial=dict(model=demo.attrs['model_file'],states=demo['states'][0])
                                 if 'ep_meta' in demo.attrs:initial['ep_meta']=demo.attrs['ep_meta']
-                        # Restore the paired state into the native official scene.
-                        # Modern saved XML cannot be loaded by official MuJoCo 2.1.
-                        xml=ET.fromstring(initial['model'])
-                        names=[e.attrib['name'] for e in xml.find('worldbody').iter('joint')]
-                        assert names==list(env.env.sim.model.joint_names),(names,env.env.sim.model.joint_names)
-                        env.reset()
-                        obs=env.reset_to({'states':initial['states']})
+                        obs=env.reset_to(initial)
+                        names=[e.attrib['name'] for e in ET.fromstring(initial['model']).find('worldbody').iter('joint')]
                         np.testing.assert_allclose(env.get_state()['states'],initial['states'],rtol=0,atol=1e-10)
                         reward,done=0.,False
                     else:
@@ -82,7 +77,7 @@ def main():
                     if op=='reset':
                         result['initial_state']=env.get_state()
                         result['delta_controller']=env.env.robots[0].controller.use_delta
-                        result['runtime']=dict(python=sys.executable,robosuite=robosuite.__version__,robosuite_path=robosuite.__file__,joint_names=names,scene='native official robosuite1.2.0; state vector restored from LaDiWM')
+                        result['runtime']=dict(python=sys.executable,robosuite=robosuite.__version__,robosuite_path=robosuite.__file__,joint_names=names,scene='robosuite1.4.1; full LaDiWM model XML and state restored')
 
                 else:raise ValueError(op)
                 conn.send(portable(result))
