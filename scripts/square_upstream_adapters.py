@@ -31,15 +31,15 @@ def ae_policy(base):
     return p
 
 class PairedRunner(BaseImageRunner):
-    def __init__(self,output_dir,modality,down_dims=None):
-        super().__init__(output_dir);self.modality=modality;self.index=1;self.down_dims=down_dims
+    def __init__(self,output_dir,modality,down_dims=None,architecture="unet"):
+        super().__init__(output_dir);self.modality=modality;self.index=1;self.down_dims=down_dims;self.architecture=architecture
     def run(self,policy):
         epoch=self.index*50;self.index+=1
         folder=Path(self.output_dir)/'rollouts'/f'epoch_{epoch:04d}';folder.mkdir(parents=True,exist_ok=True)
         start=time.perf_counter()
         # Only EMA weights are copied for evaluation; training state remains upstream.
         state={k:v.detach().cpu().clone() for k,v in policy.state_dict().items()}
-        torch.save(dict(model=state,config=dict(modality=self.modality,seed=42,epochs=100,smoke=False,down_dims=self.down_dims),epoch=epoch),folder/'policy.pt');del state
+        torch.save(dict(model=state,config=dict(modality=self.modality,seed=42,epochs=100,smoke=False,down_dims=self.down_dims,architecture=self.architecture),epoch=epoch),folder/'policy.pt');del state
         origin=Path(self.output_dir)/'train_started.json'
         if origin.exists():
             (folder/'training_time.json').write_text(json.dumps({'epochs_completed':epoch+1,'trainer_wall_seconds_before_rollout':time.time()-json.loads(origin.read_text())['unix_time']})+'\n')
@@ -50,11 +50,11 @@ class PairedRunner(BaseImageRunner):
         (folder/'rollout_wall.json').write_text(json.dumps({'wall_seconds':time.perf_counter()-start})+'\n')
         return {'test/mean_score':test['success_rate'],'validation/mean_score':valid['success_rate']}
 
-def config(modality,down_dims=None):
+def config(modality,down_dims=None,architecture="unet"):
     from hydra import initialize_config_dir, compose
     root=Path(__file__).resolve().parents[1]
     with initialize_config_dir(config_dir=str(root/'diffusion_policy/config'),version_base=None):
-        cfg=compose(config_name='train_diffusion_unet_hybrid_workspace',overrides=['task=square_image_abs'])
+        cfg=compose(config_name='train_diffusion_transformer_hybrid_workspace' if architecture=='transformer' else 'train_diffusion_unet_hybrid_workspace',overrides=['task=square_image_abs'])
     OmegaConf.set_struct(cfg,False)
     original=OmegaConf.to_container(cfg,resolve=True)
     cfg.training.skip_initial_rollout=True
@@ -66,6 +66,7 @@ def config(modality,down_dims=None):
     if modality=='point_ae':
         cfg.task.dataset.dataset_path='/home/zxiao93/Documents/LaDiWM/results/dp_upstream_abs100_20260922/point_ae_abs.hdf5'
     cfg.task.env_runner=OmegaConf.create(dict(_target_='square_upstream_adapters.PairedRunner',modality=modality))
+    if architecture=='transformer':cfg.task.env_runner.architecture='transformer'
     if down_dims is not None:
         cfg.policy.down_dims=list(down_dims)
         cfg.task.env_runner.down_dims=list(down_dims)

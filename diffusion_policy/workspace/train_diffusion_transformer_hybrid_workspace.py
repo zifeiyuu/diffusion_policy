@@ -149,7 +149,7 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         with JsonLogger(log_path) as json_logger:
-            for local_epoch_idx in range(cfg.training.num_epochs):
+            for local_epoch_idx in range(min(cfg.training.num_epochs, cfg.training.get('stop_after_epochs',cfg.training.num_epochs))):
                 step_log = dict()
                 # ========= train for this epoch ==========
                 train_losses = list()
@@ -210,7 +210,7 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                 policy.eval()
 
                 # run rollout
-                if (self.epoch % cfg.training.rollout_every) == 0:
+                if (self.epoch % cfg.training.rollout_every) == 0 and not (self.epoch==0 and cfg.training.get('skip_initial_rollout',False)):
                     runner_log = env_runner.run(policy)
                     # log all
                     step_log.update(runner_log)
@@ -253,7 +253,7 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                         del mse
                 
                 # checkpoint
-                if (self.epoch % cfg.training.checkpoint_every) == 0:
+                if (self.epoch % cfg.training.checkpoint_every) == 0 and not (self.epoch==0 and cfg.training.get('skip_initial_rollout',False)):
                     # checkpointing
                     if cfg.checkpoint.save_last_ckpt:
                         self.save_checkpoint()

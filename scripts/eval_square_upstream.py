@@ -82,7 +82,7 @@ def obs_feature(ob,modality):
     return {**{k:ob[k] for k in ROBOT},**extra}
 
 
-def batched_sample(self,condition_data,condition_mask,local_cond=None,global_cond=None,generator=None,**kwargs):
+def batched_sample(self,condition_data,condition_mask,local_cond=None,global_cond=None,generator=None,cond=None,**kwargs):
     """Upstream sampling with an independent RNG per episode; unchanged scheduler.step."""
     gens=self._batch_generators
     assert len(gens)==len(condition_data)
@@ -90,7 +90,7 @@ def batched_sample(self,condition_data,condition_mask,local_cond=None,global_con
     self.noise_scheduler.set_timesteps(self.num_inference_steps)
     for t in self.noise_scheduler.timesteps:
         sample[condition_mask]=condition_data[condition_mask]
-        pred=self.model(sample,t,local_cond=local_cond,global_cond=global_cond)
+        pred=self.model(sample,t,cond) if getattr(self,'_dp_architecture','unet')=='transformer' else self.model(sample,t,local_cond=local_cond,global_cond=global_cond)
         sample=torch.cat([self.noise_scheduler.step(pred[i:i+1],t,sample[i:i+1],generator=g,**kwargs).prev_sample for i,g in enumerate(gens)],0)
     sample[condition_mask]=condition_data[condition_mask]
     return sample
@@ -99,7 +99,8 @@ def batched_sample(self,condition_data,condition_mask,local_cond=None,global_con
 def load(run):
     path=Path(run)/'policy.pt';payload=torch.load(path,map_location='cpu');cfg=payload['config']
     assert cfg['modality'] in ['image','point_ae'] and cfg['seed']==42 and cfg['epochs']==100 and not cfg['smoke']
-    resolved,_=config(cfg['modality'],down_dims=cfg.get('down_dims'));policy=hydra.utils.instantiate(resolved.policy);policy.load_state_dict(payload['model'],strict=True);policy.cuda().eval()
+    resolved,_=config(cfg['modality'],down_dims=cfg.get('down_dims'),architecture=cfg.get('architecture','unet'));policy=hydra.utils.instantiate(resolved.policy);policy.load_state_dict(payload['model'],strict=True);policy.cuda().eval()
+    policy._dp_architecture=cfg.get('architecture','unet')
     if cfg['modality']=='point_ae':
         ae=FrozenPointAE().cuda().eval();original=policy.predict_action
         def with_ae(ob):
