@@ -21,8 +21,17 @@ def main():
     os.environ['LD_LIBRARY_PATH']=str(Path.home()/'.mujoco/mujoco210/bin')+':/usr/lib/x86_64-linux-gnu:'+os.environ.get('LD_LIBRARY_PATH','')
     try:
         previous=O.parent/'dp_small100_20260923'
-        status('waiting','Await small UNet completion and publication');report()
-        while not (previous/'published_commit.txt').exists():
+        def prior_finished():
+            for m in ['image','point_ae']:
+                root=previous/f'{m}_seed42'
+                if not (root/'complete.json').exists():return False
+                for sub in ['rollouts/epoch_0050','last']:
+                    for split in ['valid','random_saved']:
+                        p=root/sub/split/'results.json'
+                        if not p.exists() or not json.loads(p.read_text()).get('complete'):return False
+            return True
+        status('waiting','Await small UNet training and evaluation completion');report()
+        while not prior_finished():
             state=json.loads((previous/'queue_status.json').read_text())
             if state['state']=='failed':raise RuntimeError('Preceding small UNet queue failed; Transformer queue not started')
             time.sleep(45)

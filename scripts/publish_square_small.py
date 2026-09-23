@@ -5,6 +5,12 @@ L=Path('/home/zxiao93/Documents/LaDiWM');O=L/'results/dp_small100_20260923';R=L/
 PAGES=['experiment_logs/summary/README.md','experiment_logs/others/README.md']
 def outside(name):
     s=(L/name).read_text()
+    # Both concurrently updated experiment blocks are authorized in this session.
+    for tag in ['dp-small100','dp-transformer100']:
+        s=re.sub(re.escape('<!-- '+tag+':start -->')+'.*?'+re.escape('<!-- '+tag+':end -->'),'',s,flags=re.S)
+    for report in ['dp_small100','dp_transformer100']:
+        tag='experiment:experiment_logs/2026-09-23/'+report+'/README.md'
+        s=re.sub(re.escape('<!-- '+tag+':start -->')+'.*?'+re.escape('<!-- '+tag+':end -->'),'',s,flags=re.S)
     if '/summary/' in name:a,b='<!-- dp-small100:start -->','<!-- dp-small100:end -->'
     else:
         key='experiment_logs/2026-09-23/dp_small100/README.md';a,b=f'<!-- experiment:{key}:start -->',f'<!-- experiment:{key}:end -->'
