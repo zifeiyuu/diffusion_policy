@@ -99,7 +99,7 @@ def batched_sample(self,condition_data,condition_mask,local_cond=None,global_con
 def load(run):
     path=Path(run)/'policy.pt';payload=torch.load(path,map_location='cpu');cfg=payload['config']
     if cfg.get('down_dims') is not None:cfg['down_dims']=list(cfg['down_dims'])
-    assert cfg['modality'] in ['image','point_ae'] and cfg['seed']==42 and cfg['epochs']==100 and not cfg['smoke']
+    assert cfg['modality'] in ['image','point_ae'] and cfg['seed']==42 and cfg['epochs'] in [50,100] and not cfg['smoke']
     resolved,_=config(cfg['modality'],down_dims=cfg.get('down_dims'),architecture=cfg.get('architecture','unet'));policy=hydra.utils.instantiate(resolved.policy);policy.load_state_dict(payload['model'],strict=True);policy.cuda().eval()
     policy._dp_architecture=cfg.get('architecture','unet')
     if cfg['modality']=='point_ae':
